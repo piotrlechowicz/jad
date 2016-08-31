@@ -1,0 +1,16 @@
+{
+	"default": {
+		"server" 	: "set-server-path",
+		"ear"	 	: "set-ear-path",
+		"modules" 	: [
+			"path", "path", "path"
+			]
+	},
+	"notdefault": {
+		"server"	: "server-path",
+		"ear"		: "ear-path",
+		"modules"	: [
+			"path", "path"
+			]
+	}
+}
