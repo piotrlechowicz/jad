@@ -1,15 +1,27 @@
 {
-  "default": {
-    "server": "set-server-path",
-    "ear": {
-      "mvn_path": "set-path-for-mvn",
-      "ear_path": "set-ear-path",
-      "name": "ser-ear-name"
-    },
-    "modules": [
-      "path",
-      "path",
-      "path"
-    ]
+  "profiles": {
+    "default": {
+      "server": "server-1",
+      "ear": "ear1",
+      "modules": "modulesA"
+    }
+  },
+  "servers": {
+    "server1": "path-to-server-1"
+  },
+  "ears": {
+    "ear1": {
+      "mvn_path": "path-to-maven-folder-ear1",
+      "ear_path": "path-to-ear-folder-for-ear1",
+      "name": "name-of-an-ear"
+    }
+  },
+  "modules": {
+    "modulesA": [
+      "module123",
+      "module321"
+    ],
+    "module1": ["path-to-module1"],
+    "module2": ["path-to-module2"]
   }
 }
