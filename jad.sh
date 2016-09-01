@@ -1,46 +1,54 @@
 #!/bin/bash
 
-#### PRECONDITIONS ####
+### java artifact deployer ###
 
-# checks if jq package for parsing json is installed---------------------
+####-------- PRECONDITIONS -------####
+
+# checks if jq package for parsing json is installed
 if [[ ! `dpkg -s 'jq' | grep 'ok install'` ]]; then
     echo "Please install jq package for parsing json"
     echo `dpkg-query -l 'jq'`
     exit 42
 fi
 
-# checks if json configuration file exists--------------------------------
-json_file="jad-conf.json"
+json_file="jad-conf.json"   # json file with deployment profile configuration
 
-if [ ! -e "$json_file" ]; then
+if [ ! -e "$json_file" ]; then                              # check if json file exists
     echo "Missing json configuration file: $json_file"
+    exit 42
 fi
 
-# if there are no parameters exit-----------------------------------------
+# if file is invoked without parameters
 if [ $# -eq 0 ]; then
-	echo "executing version without arguments"
+	echo "executing version without arguments"  #TODO: change to show help
     exit 42
 fi
 
 #### DECLARE VARIABLES ####
 
 # possible options
-build_modules=false
-build_ear=false
-deploy=false
-show_errors=false
-skip_tests=false
-profile="default"
-debug=false
-quiet=false
+build_modules=false # if jar modules should be build
+build_ear=false     # if ear module should be build
+deploy=false        # if ear should be deployed on server
+show_errors=false   # if maven should show errors
+skip_tests=false    # if maven should skip tests
+profile="default"   # deployment profile from json file
+debug=false         # if maven should show debug
+quiet=false         # if maven should be run in quiet mode
 
-server_path=""
-modules_paths=()
-ear_path=""
+server_path=""      # path where artifact should be copied
+modules_paths=()    # path to folders where maven creates jar modules
+ear_maven_path=""   # path to folder where maven creates ear
+ear_path=""         # path where output ear is stored
+ear_name=""         # name of an ear
+
 
 # this function parses parameters in short format ( -zxcv )
-# as a parameter it takes one argument
-# it returns whether any parameter was parsed
+# it only parses if the parameters start with single hyphenation
+# if there are many parameters combined as (-zxc) it splits them into (-z -x -c)
+#
+# param $1: parameter to parse
+# return: number of parsed parameters (if it is greater than 0 the main argument parameters should be parsed)
 function parse_short_parameters {
     local parameters=()
     # checking if there is parameter with single hyphenation------------------
@@ -101,8 +109,11 @@ function parse_short_parameters {
 }
 
 # this function parses parameters in long format ( -zzz -xxx -yyy)
+#
+# param $#: list of arguments to parse
+# return: nothing
 function parse_long_parameters {
-    # iterate through the rest of command line arguments
+    # iterate through the command line arguments
     while [[ $# -gt 0 ]]; do
         case $1 in
             -b | --build)       shift
@@ -151,6 +162,23 @@ function parse_long_parameters {
     done;
 }
 
+# removes prefix and suffix " if they exist in the variable
+#
+# param $1: variable to sanitize
+# returns sanitized variable
+function sanitize_variable {
+    local variable=$1
+    variable=${variable%\"} # removing suffix
+    variable=${variable#\"} # removing prefix
+    echo $variable
+}
+# parses deployment profile details from json file
+# there are fetched following variables:
+#   $server_path, $ear_mvn_path, $ear_path, $ear_name, ${modules_path[*]}
+# if fetching fails, the variable will store 'null' string
+#
+# param $1: deployment profile
+# return: nothing
 function parse_profile {
     local profile=$1
     profile_json=$(cat $json_file | jq ".\"$profile\"")
@@ -160,37 +188,71 @@ function parse_profile {
         exit 5
     fi;
 
-    server_path=$(echo $profile_json | jq '.server')
-    ear_path=$(echo $profile_json | jq '.ear')
+    server_path=$(sanitize_variable $(echo $profile_json | jq '.server'))
+
+    ear_json=$(echo $profile_json | jq '.ear')
+    if [[ $ear_json != "null" ]]; then
+        ear_maven_path=$(sanitize_variable $(echo $ear_json | jq '.mvn_path'))
+        ear_path=$(sanitize_variable $(echo $ear_json | jq '.ear_path'))
+        ear_name=$(sanitize_variable $(echo $ear_json | jq '.name'))
+    fi
 
     if [[ $(echo $profile_json | jq '.modules') != "null" ]]; then
         for path in $(echo $profile_json | jq '.modules[]'); do
-            modules_paths+=("$path")
+            modules_paths+=("$(sanitize_variable $path)")
         done
     fi
 }
 
+# prepares maven command based on parsed input arguments
+#
+# return: prepared maven command
 function prepare_maven_command {
     local maven_command="mvn"
-    [ "$show_errors" = "true" ] && maven_command+=" -e";
-    [ $debug = true ] && maven_command+=" -X"
-    [ $quiet = true ] && maven_command+=" -q"
-    [ $skip_tests = true ] && maven_command+=" -DskipTests=true"
-
-    printf "%s" "$maven_command"
+    [ "$show_errors" = true ] && maven_command+=" -e";
+    [ "$debug" = true ] && maven_command+=" -X"
+    [ "$quiet" = true ] && maven_command+=" -q"
+    [ "$skip_tests" = true ] && maven_command+=" -DskipTests=true"
+    maven_command+=" clean install"
+    echo $maven_command
 }
 
+# builds jar modules
 function perform_building_modules {
-    echo "Building modules:"
-
+    local maven_command=$1
+    echo "Building modules: ${modules_paths[*]}"
     for module in ${modules_paths[*]}; do
-        echo "building module: $module"
-        mvn_args=$(prepare_maven_command)
-        echo $mvn_args
-
+        echo "Building module : $module"
+        cd ${module} && $maven_command || echo "faild to build module: $module"
     done
 }
 
+# builds ear
+function perform_building_ear {
+    local maven_comand=$1
+    echo "Building ear: $ear_maven_path"
+    [ "$ear_maven_path" != "null" ] && [ -d "$ear_maven_path" ]  && cd $ear_maven_path &&
+        $maven_command || echo "building ear failed"
+}
+
+# deploys ear on server
+function perform_deploying_ear {
+    local maven_command=$1
+    echo "Deploying ear on server: $server_path"
+    if [[ $server_path != "null" ]] && [[ $ear_path != "null" ]] && [[ $ear_name != "null" ]]; then
+        #clear the server directory
+        cd $server_path || return 1
+        echo "removing deployed ear from server"
+        [ -f "$ear_name" ] && rm -f $ear_name
+        [ -f "${ear_name}.deployed" ] && rm -f "${ear_name}.deployed"
+
+        echo "copying new ear to server"
+        [ ! "$ear_path" == */ ] && ear_path="${ear_path}/"      # if path not ends with "/" append it
+        cp "${ear_path}${ear_name}" "${server_path}" || echo "unsuccessful copy operation"
+    fi
+}
+
+##### MAIN FLOW OF THE SCRIPT #####
 
 parse_short_parameters $1
 # parse short parameters returns information if any argument war parsed
@@ -200,19 +262,13 @@ if [[ $? -gt 0 ]]; then
     shift
 fi
 parse_long_parameters $@
+
 parse_profile $profile
+maven_command=$(prepare_maven_command)
 
-echo "executing with $profile profile"
+echo "executing with profile: $profile"
+echo "maven command: $maven_command"
 
-if [[ $build_modules != false ]]; then
-    perform_building_modules
-
-fi
-
-
-
-
-
-
-
-
+[ $build_modules != false ] && perform_building_modules "$maven_command"
+[ $build_ear != false ] && perform_building_ear "$maven_command"
+[ $deploy != false ] && perform_deploying_ear "$maven_command"
