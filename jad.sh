@@ -3,7 +3,7 @@
 ### java artifact deployer ###
 
 #set -x
-script_debug=true
+script_debug=false
 ####-------- PRECONDITIONS -------####
 
 # checks if jq package for parsing json is installed
@@ -245,6 +245,7 @@ function prepare_maven_command {
 # builds jar modules
 function perform_building_modules {
     local maven_command=$1
+    echo "maven command : $maven_command"
     echo "Building modules: ${modules_paths[*]}"
     for module in ${modules_paths[*]}; do
         echo "Building module : $module"
@@ -255,6 +256,7 @@ function perform_building_modules {
 # builds ear
 function perform_building_ear {
     local maven_comand=$1
+    echo "maven command : $maven_command"
     echo "Building ear: $ear_maven_path"
     [ "$ear_maven_path" != "null" ] && [ -d "$ear_maven_path" ]  && cd $ear_maven_path &&
         $maven_command || echo "building ear failed"
@@ -262,7 +264,6 @@ function perform_building_ear {
 
 # deploys ear on server
 function perform_deploying_ear {
-    local maven_command=$1
     echo "Deploying ear on server: $server_path"
     if [[ $server_path != "null" ]] && [[ $ear_path != "null" ]] && [[ $ear_name != "null" ]]; then
         #clear the server directory
@@ -292,8 +293,7 @@ parse_profile $profile
 maven_command=$(prepare_maven_command)
 
 echo "executing with profile: $profile"
-echo "maven command: $maven_command"
 
-#[ $build_modules != false ] && perform_building_modules "$maven_command"
-#[ $build_ear != false ] && perform_building_ear "$maven_command"
-#[ $deploy != false ] && perform_deploying_ear "$maven_command"
+[ $build_modules != false ] && perform_building_modules "$maven_command"
+[ $build_ear != false ] && perform_building_ear "$maven_command"
+[ $deploy != false ] && perform_deploying_ear
