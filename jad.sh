@@ -3,7 +3,7 @@
 ### java artifact deployer ###
 
 #set -x
-script_debug=false
+script_debug=true
 ####-------- PRECONDITIONS -------####
 
 # checks if jq package for parsing json is installed
@@ -44,6 +44,7 @@ ear_maven_path=""   # path to folder where maven creates ear
 ear_path=""         # path where output ear is stored
 ear_name=""         # name of an ear
 
+source ./parse_profile.sh
 
 # this function parses parameters in short format ( -zxcv )
 # it only parses if the parameters start with single hyphenation
@@ -164,71 +165,6 @@ function parse_long_parameters {
     done;
 }
 
-# removes prefix and suffix " if they exist in the variable
-#
-# param $1: variable to sanitize
-# returns sanitized variable
-function sanitize_variable {
-    local variable=$1
-    variable=${variable%\"} # removing suffix
-    variable=${variable#\"} # removing prefix
-    echo $variable
-}
-
-# parses deployment profile details from json file
-# there are fetched following variables:
-#   $server_path, $ear_mvn_path, $ear_path, $ear_name, ${modules_path[*]}
-# if fetching fails, the variable will store 'null' string
-#
-# param $1: deployment profile
-# return: nothing
-function parse_profile {
-    local profile=$1
-    profile_json=$(cat $json_file | jq ".profiles.\"$profile\"")
-
-    if [[ $profile_json == "null" ]]; then
-        echo "provided provile does not exist"
-        exit 5
-    fi;
-
-    # maybe to remove???
-#    servers_json=$(cat $json_file | jq ".servers")
-#    ears_json=$(cat $json_file | jq ".ears")
-
-    #fetching server (required - json file, and active profile
-    temp=$(echo $profile_json | jq '.server')
-    server_path=$(cat $json_file | jq ".servers.$temp")
-    [ "$server_path" = null ] && server_path=$temp
-    server_path=$(sanitize_variable $server_path)
-
-    # fetching ears
-    ear_json=$(echo $profile_json | jq '.ear')
-    [ $(echo $ear_json | jq '. | type') = "\"string\"" ] && ear_json=$(cat $json_file | jq ".ears.$ear_json")
-
-    if [[ $ear_json != "null" ]]; then
-        ear_maven_path=$(sanitize_variable $(echo $ear_json | jq '.mvn_path'))
-        ear_path=$(sanitize_variable $(echo $ear_json | jq '.ear_path'))
-        ear_name=$(sanitize_variable $(echo $ear_json | jq '.name'))
-    fi
-
-    # fetching modules
-    modules_json=$(echo $profile_json | jq '.modules')
-    [ $(echo $modules_json | jq '. | type') = "\"string\"" ] && modules_json=$(cat $json_file | jq ".modules.$modules_json")
-
-    for path in $(echo $modules_json | jq '.[]'); do
-        modules_paths+=("$(sanitize_variable $path)")
-    done
-
-
-    if [[ "$script_debug" = true ]]; then
-        echo -e "server path : $server_path
-ear maven path : $ear_maven_path
-ear path : $ear_path
-ear name : $ear_name
-modules paths : ${modules_paths[@]}\n"
-    fi
-}
-
 # prepares maven command based on parsed input arguments
 #
 # return: prepared maven command
@@ -294,6 +230,8 @@ maven_command=$(prepare_maven_command)
 
 echo "executing with profile: $profile"
 
-[ $build_modules != false ] && perform_building_modules "$maven_command"
-[ $build_ear != false ] && perform_building_ear "$maven_command"
-[ $deploy != false ] && perform_deploying_ear
+if [[ script = "false" ]]; then
+    [ $build_modules != false ] && perform_building_modules "$maven_command"
+    [ $build_ear != false ] && perform_building_ear "$maven_command"
+    [ $deploy != false ] && perform_deploying_ear
+fi
