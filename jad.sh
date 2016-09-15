@@ -3,7 +3,7 @@
 ### java artifact deployer ###
 
 #set -x
-script_debug=true
+script_debug=false
 ####-------- PRECONDITIONS -------####
 
 # checks if jq package for parsing json is installed
@@ -182,7 +182,7 @@ function prepare_maven_command {
 function perform_building_modules {
     local maven_command=$1
     echo "maven command : $maven_command"
-    echo "Building modules: ${modules_paths[*]}"
+    echo "Building modules: [${modules_paths[*]}]"
     for module in ${modules_paths[*]}; do
         echo "Building module : $module"
         cd ${module} && $maven_command || echo "faild to build module: $module"
@@ -230,7 +230,7 @@ maven_command=$(prepare_maven_command)
 
 echo "executing with profile: $profile"
 
-if [[ script = "false" ]]; then
+if [[ $script_debug = "false" ]]; then
     [ $build_modules != false ] && perform_building_modules "$maven_command"
     [ $build_ear != false ] && perform_building_ear "$maven_command"
     [ $deploy != false ] && perform_deploying_ear

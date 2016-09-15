@@ -54,7 +54,14 @@ function parse_ear_path {
     fi
 }
 
-# add comment
+# helper funcion for parsing modules
+#
+# it recursively parses modules in following manner:
+#   1.  checks whether found string exists in '.modules' section
+#       in json file
+#   2.  if so, it fetches that array and for each it goes to step 1
+#   3.  if not, it adds this module to the modules_paths
+#
 function parse_modules_helper {
     local json_file=$1
     local json_module=$(sanitize_variable $2)
@@ -71,7 +78,12 @@ function parse_modules_helper {
     done
 }
 
-# TODO: add comment
+# parses module paths
+#
+# param $1 : json file
+# param $2 : profile fetched from json file
+#
+# sets : global variable modules_paths[]
 function parse_modules {
     local json_file=$1
     local profile_json=$2
