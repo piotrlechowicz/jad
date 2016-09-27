@@ -4,6 +4,12 @@
 
 #set -x
 script_debug=false
+
+#resolving symlink and moving to script folder
+target_bash_source=$(readlink -e "${BASH_SOURCE}")
+parent_path=$( cd -P "$( dirname "${target_bash_source}")"; pwd -P )
+cd $parent_path
+
 ####-------- PRECONDITIONS -------####
 
 # checks if jq package for parsing json is installed
