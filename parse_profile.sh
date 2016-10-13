@@ -113,7 +113,7 @@ function parse_profile {
     profile_json=$(cat $json_file | jq ".profiles.\"$profile\"")
 
     if [[ $profile_json == "null" ]]; then
-        echo "provided provile does not exist"
+        echo "provided profile does not exist"
         exit 5
     fi;
 
