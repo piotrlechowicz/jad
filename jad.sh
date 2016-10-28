@@ -35,22 +35,41 @@ fi
 #### DECLARE VARIABLES ####
 
 # possible options
-build_modules=false # if jar modules should be build
-build_ear=false     # if ear module should be build
-deploy=false        # if ear should be deployed on server
-show_errors=false   # if maven should show errors
-skip_tests=false    # if maven should skip tests
-profile="default"   # deployment profile from json file
-debug=false         # if maven should show debug
-quiet=false         # if maven should be run in quiet mode
+build_modules=false			# if jar modules should be build
+build_ear=false     		# if ear module should be build
+deploy=false        		# if ear should be deployed on server
+show_errors=false   		# if maven should show errors
+skip_tests=false    		# if maven should skip tests
+profile="default"   		# deployment profile from json file
+debug=false         		# if maven should show debug
+quiet=false         		# if maven should be run in quiet mode
 
-server_path=""      # path where artifact should be copied
-modules_paths=()    # path to folders where maven creates jar modules
-ear_maven_path=""   # path to folder where maven creates ear
-ear_path=""         # path where output ear is stored
-ear_name=""         # name of an ear
+server_path=""     			# path where artifact should be copied
+modules_paths=()    		# path to folders where maven creates jar modules
+ear_maven_path=""   		# path to folder where maven creates ear
+ear_path=""         		# path where output ear is stored
+ear_name=""         		# name of an ear
+mvn_additional_command="" 	# maven additional commands
+mvn_life_cycle=""			# maven life cycle
 
 source ./parse_profile.sh
+
+# function to show help
+function show_help {
+cat << EOF 
+    -b | --build                build modules
+    -d | --deploy               deploy ear
+    -e | --ear                  build ear
+    -p | --profile              activate profile
+    -r | --show-errors          show maven error
+    -s | --skip-tests           skip maven tests
+    -q | --quiet                quiet maven
+    -X | --debug                debug maven
+    -l | --life-cycle			set maven life cycle
+    -c | --command				set additional maven commands
+    -h | --help                 show help
+EOF
+}
 
 # this function parses parameters in short format ( -zxcv )
 # it only parses if the parameters start with single hyphenation
@@ -108,7 +127,7 @@ function parse_short_parameters {
                     ;;
                 *)
                     echo "Cannot recognize command"
-                    echo "I'm showing help..."
+                    show_help
                     exit
                     ;;
             esac
@@ -123,7 +142,7 @@ function parse_short_parameters {
 # return: nothing
 function parse_long_parameters {
     # iterate through the command line arguments
-    while [[ $# -gt 0 ]]; do
+    while [[ $# -gt 0 ]]; do	
         case $1 in
             -b | --build)       shift
                                 #Set build modules to true"
@@ -158,13 +177,23 @@ function parse_long_parameters {
                                 #Set debug to true
                                 debug=true
                                 ;;
+			-l | --life-cycle)	shift
+								#Set maven life cycle
+								mvn_life_cycle="$1"
+								shift
+								;;
+			-c | --command)		shift
+								#Set additional maven commands
+								mvn_additional_commands="$1"
+								shift
+								;;
             -h | --help)		shift
-                                echo "I'm showing help..."
+                                show_help
                                 exit
                                 ;;
             *)					shift
                                 echo "Cannot recognize command"
-                                echo "I'm showing help..."
+                                show_help
                                 exit
                                 ;;
         esac
@@ -180,7 +209,12 @@ function prepare_maven_command {
     [ "$debug" = true ] && maven_command+=" -X"
     [ "$quiet" = true ] && maven_command+=" -q"
     [ "$skip_tests" = true ] && maven_command+=" -DskipTests=true"
-    maven_command+=" clean install"
+	if [ "$mvn_life_cycle" != "" ]; then
+		maven_command+=" $mvn_life_cycle"
+	else 
+    	maven_command+=" clean install"
+	fi
+	[ "$mvn_additional_commands" != "" ] && maven_command+=" $mvn_additional_commands"
     echo $maven_command
 }
 
